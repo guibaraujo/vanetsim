@@ -1,27 +1,9 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-
-// ███╗░░██╗██████╗░███╗░░██╗░░██╗██╗██╗██╗░░░██╗░█████╗░
-// ████╗░██║██╔══██╗████╗░██║░██╔╝██║██║██║░░░██║██╔══██╗
-// ██╔██╗██║██║░░██║██╔██╗██║██╔╝░██║██║╚██╗░██╔╝██║░░╚═╝
-// ██║╚████║██║░░██║██║╚████║███████║██║░╚████╔╝░██║░░██╗
-// ██║░╚███║██████╔╝██║░╚███║╚════██║██║░░╚██╔╝░░╚█████╔╝
-// ╚═╝░░╚══╝╚═════╝░╚═╝░░╚══╝░░░░░╚═╝╚═╝░░░╚═╝░░░░╚════╝░
-
-#include "ns3/tms-consumer.h"
-#include "ns3/tms-consumer-app.h"
-#include "ns3/tms-provider.h"
-#include "ns3/tms-provider-app.h"
-
 #include "ns3/wave-module.h"
 #include "ns3/wifi-module.h"
 #include "ns3/mobility-module.h"
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
-#include "ns3/ndnSIM-module.h"
 #include "ns3/internet-module.h"
-
-#include "ns3/wifi-setup-helper.h"
-#include "ns3/wifi-adhoc-helper.h"
 
 #include "ns3/traci-module.h"
 #include "ns3/netanim-module.h"
@@ -51,15 +33,12 @@
   "\
 #/bin/bash \n\
 #echo $1 \n\
-echo `cat contrib/ndn4ivc/traces/" SUMO_SCENARIO_NAME "/*.rou.xml |grep 'vehicle id'|wc -l` \n\
+echo `cat contrib/vanetsim/traces/" SUMO_SCENARIO_NAME "/*.rou.xml |grep 'vehicle id'|wc -l` \n\
 "
 
-namespace ns3 {
+using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("vndn-example-tms");
-
-NS_OBJECT_ENSURE_REGISTERED (TmsConsumerApp);
-NS_OBJECT_ENSURE_REGISTERED (TmsProviderApp);
+NS_LOG_COMPONENT_DEFINE ("vanet-example");
 
 std::map<uint32_t, ns3::Time> nodesDisable2Move;
 
@@ -106,7 +85,7 @@ main (int argc, char *argv[])
 
   std::cout << "Selected SUMO scenario: " << SUMO_SCENARIO_NAME << std::endl;
 
-  uint32_t nRSUs = 2;
+  uint32_t nRSUs = 1;
 
   uint32_t interestInterval = 1000;
   uint32_t simTime = 600;
@@ -155,11 +134,7 @@ main (int argc, char *argv[])
       // *
 
       std::vector<std::string> componentsLogLevelAll;
-      componentsLogLevelAll.push_back ("vndn-example-tms");
-      componentsLogLevelAll.push_back ("ndn.TmsConsumer");
-      componentsLogLevelAll.push_back ("ndn.TmsProvider");
-      componentsLogLevelAll.push_back ("ndn-cxx.nfd.MulticastStrategy");
-      componentsLogLevelAll.push_back ("ndn-cxx.nfd.Forwarder");
+      componentsLogLevelAll.push_back ("vanet-example");
       //componentsLogLevelAll.push_back ("WifiPhy");
 
       std::vector<std::string> componentsLogLevelError;
@@ -193,19 +168,46 @@ main (int argc, char *argv[])
    * Ref.: doi: 10.1109/VETECF.2007.461
    */
   std::cout << "Installing networking devices for every node..." << std::endl;
-  ndn::WifiSetupHelper wifi;
-  NetDeviceContainer devices = wifi.ConfigureDevices (nodePool, enablePcap);
+
+
+  std::string phyMode ("OfdmRate6MbpsBW10MHz");
+  YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
+  YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
+
+  wifiPhy.SetChannel (wifiChannel.Create ());
+  wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11);
+
+  // 21dBm ~ 70m 
+  // 24dBm ~ 100m
+  // 30dBm ~ 150m
+  wifiPhy.Set ("TxPowerStart", DoubleValue (21)); //Minimum available transmission level (dbm)
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (21)); //Maximum available transmission level (dbm)
+  wifiPhy.Set (
+      "TxPowerLevels",
+      UintegerValue (
+          8)); //Number of transmission power levels available between TxPowerStart and TxPowerEnd included
+
+  NqosWaveMacHelper wifi80211pMac = NqosWaveMacHelper::Default ();
+  wifi80211pMac.SetType (
+      "ns3::OcbWifiMac"); //  in IEEE80211p MAC does not require any association between devices (similar to an adhoc WiFi MAC)...
+
+  Wifi80211pHelper wifi80211p = Wifi80211pHelper::Default ();
+  wifi80211p.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode",
+                                      StringValue (phyMode), "ControlMode", StringValue (phyMode),
+                                      "NonUnicastMode", StringValue (phyMode));
+  NetDeviceContainer wifiNetDevices = wifi80211p.Install (wifiPhy, wifi80211pMac, nodePool);
+
 
   // install Ndn stack
   std::cout << "Installing Ndn stack in " << nVehicles + nRSUs << " nodes ... " << std::endl;
-  ndn::StackHelper ndnHelper;
-  ndnHelper.AddFaceCreateCallback (WifiNetDevice::GetTypeId (), MakeCallback (FixLinkTypeAdhocCb));
+  //ndn::StackHelper ndnHelper;
+  //ndnHelper.AddFaceCreateCallback (WifiNetDevice::GetTypeId (), MakeCallback (FixLinkTypeAdhocCb));
   //ndnHelper.setPolicy("nfd::cs::lru");
-  ndnHelper.setCsSize (1000);
-  ndnHelper.SetDefaultRoutes (true);
-  ndnHelper.InstallAll ();
+  //ndnHelper.setCsSize (1000);
+  //ndnHelper.SetDefaultRoutes (true);
+  //ndnHelper.InstallAll ();
   // forwarding strategy
-  ndn::StrategyChoiceHelper::Install (nodePool, "/", "/localhost/nfd/strategy/multicast-vanet");
+  //ndn::StrategyChoiceHelper::Install (nodePool, "/", "/localhost/nfd/strategy/multicast-vanet");
   //ndn::StrategyChoiceHelper::Install (nodePool, "/", "/localhost/nfd/strategy/multicast");
 
   // install mobility & config SUMO
@@ -254,11 +256,15 @@ main (int argc, char *argv[])
                                         << "] has initialized and the app installed!");
     Ptr<Node> includedNode = nodePool.Get (nodeCounter);
     nodeCounter++;
-    Ptr<TmsConsumerApp> tmsConsumerApp = CreateObject<TmsConsumerApp> ();
-    tmsConsumerApp->SetAttribute ("Frequency", UintegerValue (interestInterval));
-    tmsConsumerApp->SetAttribute ("Client", (PointerValue) (sumoClient));
+    ///Ptr<ns3::ndn::ConsumerCbr> tmsConsumerApp = CreateObject<ns3::ndn::ConsumerCbr> ();
+    ///tmsConsumerApp->SetAttribute ("Frequency", StringValue ("1"));
 
-    includedNode->AddApplication (tmsConsumerApp);
+    ///ndn::AppHelper consumerHelper ("ns3::ndn::ConsumerCbr");
+    // Consumer will request /0, /1, ...
+    ///consumerHelper.SetPrefix ("/prefix");
+    ///consumerHelper.SetAttribute ("Frequency", StringValue ("2")); // 2 interests a second
+
+    ///includedNode->AddApplication (tmsConsumerApp);
 
     return includedNode;
   };
@@ -272,14 +278,15 @@ main (int argc, char *argv[])
     NS_LOG_INFO ("Ns3SumoSetup: node [" << exNode->GetId ()
                                         << "] will be finished and disconnected!");
 
-    Ptr<TmsConsumerApp> tmsConsumerApp = DynamicCast<TmsConsumerApp> (exNode->GetApplication (0));
+   /// Ptr<ns3::ndn::ConsumerCbr> tmsConsumerApp =
+   ///     DynamicCast<ns3::ndn::ConsumerCbr> (exNode->GetApplication (0));
 
     // App will be removed
-    if (tmsConsumerApp)
-      {
-        tmsConsumerApp->StopApplication ();
-        //tmsConsumerApp->SetStopTime (NanoSeconds (1));
-      }
+    ///if (tmsConsumerApp)
+    ///  {
+        //tmsConsumerApp->StopApplication ();
+    ///    tmsConsumerApp->SetStopTime (NanoSeconds (1));
+    ///  }
 
     for (uint32_t i = 0; i < exNode->GetNDevices (); ++i)
       if (exNode->GetDevice (i)->GetObject<WifiNetDevice> ()) // it is a WifiNetDevice
@@ -299,22 +306,19 @@ main (int argc, char *argv[])
   mobilityRsuNode0->SetPosition (Vector (50, 25, 3));
   nodeCounter++;
 
-  Ptr<MobilityModel> mobilityRsuNode1 = nodePool.Get (1)->GetObject<MobilityModel> ();
-  mobilityRsuNode1->SetPosition (Vector (250, 25, 3));
-  nodeCounter++;
-  /* RSU apps */
-  ApplicationContainer tmsProviderContainer;
-  ndn::AppHelper tmsProviderHelper ("TmsProviderApp");
-  tmsProviderHelper.SetAttribute ("Client", (PointerValue) (sumoClient)); // pass TraCI object
-  tmsProviderContainer.Add (tmsProviderHelper.Install (nodePool.Get (0)));
-  tmsProviderContainer.Add (tmsProviderHelper.Install (nodePool.Get (1)));
+  /* RSU - Producer */
+  ApplicationContainer producerContainer;
+  ///ndn::AppHelper producerHelper ("ns3::ndn::Producer");
+  //producerHelper.SetPrefix ("/prefix");
+  ///producerHelper.SetAttribute ("PayloadSize", StringValue ("1024"));
+  ///producerContainer.Add (producerHelper.Install (nodePool.Get (0)));
 
-  // config 
+  // config
   // can be configured after stack is installed
   Config::Set ("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Phy/ChannelNumber",
                ns3::UintegerValue (SCH3));
   // MaxPitEntryLifetime: Maximum amount of time for which a router is willing to maintain a PIT entry
-  //Config::Set ("/NodeList/*/$ns3::ndn::Pit/MaxPitEntryLifetime", TimeValue (Seconds (5)));               
+  //Config::Set ("/NodeList/*/$ns3::ndn::Pit/MaxPitEntryLifetime", TimeValue (Seconds (5)));
 
   Simulator::Schedule (Seconds (1), &checkDisableNodes);
 
@@ -325,11 +329,3 @@ main (int argc, char *argv[])
   std::cout << RED_CODE << BOLD_CODE << "Post simulation: " END_CODE << std::endl;
   return 0;
 };
-} // namespace ns3
-
-int
-main (int argc, char *argv[])
-{
-  std::system ("clear");
-  return ns3::main (argc, argv);
-}

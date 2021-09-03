@@ -1,12 +1,12 @@
 <configuration>
     <input>
        <net-file value="map.net.xml"/>
-       <route-files value="passenger_routes.rou.xml,passenger_accident.rou.xml"/>
+       <route-files value="passenger_routes.rou.xml"/>
     </input>
 
     <output>
-         <tripinfo-output value="sumo-output.tripinfo.xml"/>
-         <emission-output value="sumo-output.emission.xml"/>
+         <!-- <tripinfo-output value="sumo-output.tripinfo.xml"/> -->
+         <!-- <emission-output value="sumo-output.emission.xml"/> -->
          <!-- <fcd-output value="sumo-output.fcd.xml"/> -->
     </output>
 
@@ -20,3 +20,5 @@
         <gui-settings-file value="settings.xml"/>
      </gui_only>     
 </configuration>
+
+

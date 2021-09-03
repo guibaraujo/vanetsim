@@ -7,38 +7,23 @@
 #     conf.check_nonfatal(header_name='stdint.h', define_name='HAVE_STDINT_H')
 
 def build(bld):
-    module = bld.create_ns3_module('ndn4ivc', [
+    module = bld.create_ns3_module('vanetsim', [
                                    'core',
                                    'network',
                                    'mobility',
                                    'wave',
-                                   'ndnSIM',
+                                   'csma',
+                                   'internet',
+                                   'point-to-point',
+                                   'applications',
                                    'traci',])
                                    
     module.source = [
-        'helper/wifi-setup-helper.cc',
-        'model/beacon.cc',
-        'model/neighbor-info.cc',
-        'model/tms-consumer.cc',
-        'model/tms-provider.cc',
-        'model/multicast-vanet-strategy.cc',
-        'model/localhop-strategy.cc'
     ]
 
     headers = bld(features='ns3header')
-    headers.module = 'ndn4ivc'
+    headers.module = 'vanetsim'
     headers.source = [
-        'helper/wifi-setup-helper.h',
-        'helper/wifi-adhoc-helper.h',
-        'model/beacon-app.h',
-        'model/beacon.h',
-        'model/neighbor-info.h',
-        'model/tms-consumer-app.h',
-        'model/tms-consumer.h',
-        'model/tms-provider-app.h',
-        'model/tms-provider.h',
-        'model/multicast-vanet-strategy.h',
-        'model/localhop-strategy.h'
     ]
 
     if bld.env.ENABLE_EXAMPLES:

@@ -7,3 +7,6 @@ def build(bld):
 
     obj = bld.create_ns3_program('vanet-example', ['vanetsim'])
     obj.source = 'vanet-example.cc'
+
+    obj = bld.create_ns3_program('vanet-example-simple', ['vanetsim'])
+    obj.source = 'vanet-example-simple.cc'

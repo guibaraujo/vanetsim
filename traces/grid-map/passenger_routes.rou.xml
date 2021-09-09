@@ -30,10 +30,10 @@
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
     <vType id="delivery" vClass="delivery"/>
     <vehicle id="cargo0" type="delivery" depart="0.00">
-        <route edges="C2C1 C1B1"/>
+        <route edges="C2C1 C1B1 B1A1 A1A0 A0B0  B0C0  C0C1 C1C2 C2B2 B2C2"/>
         <stop parkingArea="ParkAreaA" duration="20"/>
     </vehicle>
-    <vehicle id="cargo1" type="delivery" depart="0.00">
+<!--    <vehicle id="cargo1" type="delivery" depart="0.00">
         <route edges="C2C1 C1B1"/>
     <stop parkingArea="ParkAreaA" duration="20"/>
     </vehicle>
@@ -48,5 +48,5 @@
     <vehicle id="cargo4" type="delivery" depart="0.00">
         <route edges="C2C1 C1B1"/>
     <stop parkingArea="ParkAreaA" duration="20"/>
-    </vehicle>
+    </vehicle> -->
 </routes>

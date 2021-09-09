@@ -19,11 +19,15 @@ def build(bld):
                                    'traci',])
                                    
     module.source = [
+        'model/beacon-search-net.cc',
+        'model/custom-data-tag.cc'
     ]
 
     headers = bld(features='ns3header')
     headers.module = 'vanetsim'
     headers.source = [
+        'model/beacon-search-net.h',
+        'model/custom-data-tag.h'
     ]
 
     if bld.env.ENABLE_EXAMPLES:

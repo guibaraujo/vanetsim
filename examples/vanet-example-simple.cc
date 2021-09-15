@@ -22,6 +22,7 @@
 #include "ns3/point-to-point-module.h"
 
 #include "../model/beacon-search-net.h"
+#include "../model/beacon-rsu-net.h"
 
 using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("vanet-example-simple");
@@ -49,9 +50,11 @@ main (int argc, char *argv[])
       ///LogComponentEnable ("TrafficControlApplication", LOG_LEVEL_INFO);
       LogComponentEnable ("vanet-example-simple", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_ALL);
+      LogComponentEnable ("UdpEchoClientApplication", LOG_PREFIX_ALL);
       LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_ALL);
 
-      LogComponentEnable ("beacon-search-net", LOG_LEVEL_ALL);
+      LogComponentEnable ("beacon-search-net", LOG_LEVEL_INFO);
+      LogComponentEnable ("beacon-rsu-net", LOG_LEVEL_INFO);
     }
 
   /*** 1. Create node pool and counter; large enough to cover all sumo vehicles ***/
@@ -116,19 +119,8 @@ main (int argc, char *argv[])
 
   /*** 5. Assign IP address to each device ***/
   Ipv4AddressHelper address;
-  Ipv4InterfaceContainer p2pInterfaces;
   Ipv4InterfaceContainer wifiInterfaces;
-
-  address.SetBase ("189.10.10.0", "255.255.255.252");
-  p2pInterfaces = address.Assign (p2pDevices1);
-  address.SetBase ("189.10.10.4", "255.255.255.252");
-  p2pInterfaces = address.Assign (p2pDevices2);
-  address.SetBase ("189.10.10.8", "255.255.255.252");
-  p2pInterfaces = address.Assign (p2pDevices3);
-  address.SetBase ("189.10.10.12", "255.255.255.252");
-  p2pInterfaces = address.Assign (p2pDevices4);
-  address.SetBase ("189.10.10.16", "255.255.255.252");
-  p2pInterfaces = address.Assign (p2pDevices5);
+  Ipv4InterfaceContainer p2pInterfaces;
 
   address.SetBase ("172.16.0.0", "255.255.0.0");
   wifiInterfaces = address.Assign (wifiDevicesArea1);
@@ -140,6 +132,17 @@ main (int argc, char *argv[])
   wifiInterfaces = address.Assign (wifiDevicesArea4);
   address.SetBase ("172.20.0.0", "255.255.0.0");
   wifiInterfaces = address.Assign (wifiDevicesArea5);
+
+  address.SetBase ("189.10.10.0", "255.255.255.252");
+  p2pInterfaces = address.Assign (p2pDevices1);
+  address.SetBase ("189.10.10.4", "255.255.255.252");
+  p2pInterfaces = address.Assign (p2pDevices2);
+  address.SetBase ("189.10.10.8", "255.255.255.252");
+  p2pInterfaces = address.Assign (p2pDevices3);
+  address.SetBase ("189.10.10.12", "255.255.255.252");
+  p2pInterfaces = address.Assign (p2pDevices4);
+  address.SetBase ("189.10.10.16", "255.255.255.252");
+  p2pInterfaces = address.Assign (p2pDevices5);
 
   /*** 6. Routing ***/
   Ipv4StaticRoutingHelper helper;
@@ -209,7 +212,7 @@ main (int argc, char *argv[])
 
   uint16_t port = 9; // well-known echo port number
   UdpEchoServerHelper server (port);
-  ApplicationContainer apps = server.Install (nodePool.Get (0));
+  ApplicationContainer apps = server.Install (RSU1);
   apps.Start (Seconds (0.1));
   apps.Stop (Seconds (500.0));
 
@@ -227,7 +230,7 @@ main (int argc, char *argv[])
   client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
   client.SetAttribute ("Interval", TimeValue (interPacketInterval));
   client.SetAttribute ("PacketSize", UintegerValue (packetSize));
-  apps = client.Install (nodePool.Get (5));
+  apps = client.Install (CAR1);
   apps.Start (Seconds (2.0));
   apps.Stop (Seconds (500.0));
 
@@ -263,16 +266,15 @@ main (int argc, char *argv[])
     // NOTE: further actions could be required for a save shut down!
   };
 
-  Ptr<BeaconSearchNet> app_i = CreateObject<BeaconSearchNet> ();
-  app_i->SetStartTime (Seconds (5));
-  app_i->SetStopTime (Seconds (500));
-  CAR1->AddApplication (app_i);
+  Ptr<BeaconSearchNet> appBeaconSearchNet = CreateObject<BeaconSearchNet> ();
+  appBeaconSearchNet->SetStartTime (Seconds (5));
+  appBeaconSearchNet->SetStopTime (Seconds (500));
+  CAR1->AddApplication (appBeaconSearchNet);
 
-  Ptr<BeaconSearchNet> app_rsu = CreateObject<BeaconSearchNet> ();
-  app_i->SetStartTime (Seconds (5));
-  app_i->SetStopTime (Seconds (500));
-  RSU1->AddApplication (app_rsu);
-  
+  Ptr<BeaconRsuNet> appBeaconRsuNet = CreateObject<BeaconRsuNet> ();
+  appBeaconRsuNet->SetStartTime (Seconds (5));
+  appBeaconRsuNet->SetStopTime (Seconds (500));
+  RSU1->AddApplication (appBeaconRsuNet);
 
   // start traci client with given function pointers
   sumoClient->SumoSetup (setupNewWifiNode, shutdownWifiNode);

@@ -27,10 +27,20 @@ public:
   Vector GetPosition (void);
   uint32_t GetNodeId ();
   Time GetTimestamp ();
+  uint32_t GetIpAddr ();
+  uint32_t GetMask ();
 
   void SetPosition (Vector pos);
   void SetNodeId (uint32_t node_id);
   void SetTimestamp (Time t);
+  void SetIpAddr (uint32_t ipAddr);
+  void SetMask (uint32_t mask);
+
+  void PrepareHeaderHelloMessage ();
+  bool isHelloMessage ();
+
+  void PrepareHeaderDhcpMessage ();
+  bool isDhcpMessage ();
 
   CustomDataTag ();
   CustomDataTag (uint32_t node_id);
@@ -38,6 +48,11 @@ public:
 
 private:
   uint32_t m_nodeId;
+  uint8_t m_msgType;
+
+  uint32_t m_ipAddr;
+  uint32_t m_mask;
+
   /** Current position */
   Vector m_currentPosition;
   /** Timestamp this tag was created */

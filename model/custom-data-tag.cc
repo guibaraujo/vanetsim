@@ -17,11 +17,13 @@ CustomDataTag::CustomDataTag ()
 {
   m_timestamp = Simulator::Now ();
   m_nodeId = -1;
+  m_ipAddr = 0;
 }
 CustomDataTag::CustomDataTag (uint32_t node_id)
 {
   m_timestamp = Simulator::Now ();
   m_nodeId = node_id;
+  m_ipAddr = 0;
 }
 
 CustomDataTag::~CustomDataTag ()
@@ -50,7 +52,8 @@ CustomDataTag::GetInstanceTypeId (void) const
 uint32_t
 CustomDataTag::GetSerializedSize (void) const
 {
-  return sizeof (Vector) + sizeof (ns3::Time) + sizeof (uint32_t);
+  return sizeof (Vector) + sizeof (ns3::Time) + sizeof (uint32_t) + sizeof (uint8_t) +
+         sizeof (uint32_t) + sizeof (uint32_t);
 }
 /**
  * The order of how you do Serialize() should match the order of Deserialize()
@@ -65,9 +68,14 @@ CustomDataTag::Serialize (TagBuffer i) const
   i.WriteDouble (m_currentPosition.x);
   i.WriteDouble (m_currentPosition.y);
   i.WriteDouble (m_currentPosition.z);
-
   //Then we store the node ID
   i.WriteU32 (m_nodeId);
+  //Then we store the node ID
+  i.WriteU8 (m_msgType);
+  //
+  i.WriteU32 (m_ipAddr);
+  //
+  i.WriteU32 (m_mask);
 }
 /** This function reads data from a buffer and store it in class's instance variables.
  */
@@ -82,8 +90,14 @@ CustomDataTag::Deserialize (TagBuffer i)
   m_currentPosition.x = i.ReadDouble ();
   m_currentPosition.y = i.ReadDouble ();
   m_currentPosition.z = i.ReadDouble ();
-  //Finally, we extract the node id
+  //Extract the node id
   m_nodeId = i.ReadU32 ();
+  //Extract msg type
+  m_msgType = i.ReadU8 ();
+  //Extract
+  m_ipAddr = i.ReadU32 ();
+  //Extract
+  m_mask = i.ReadU32 ();
 }
 /**
  * This function can be used with ASCII traces if enabled. 
@@ -107,6 +121,7 @@ CustomDataTag::SetNodeId (uint32_t node_id)
 {
   m_nodeId = node_id;
 }
+
 Vector
 CustomDataTag::GetPosition (void)
 {
@@ -129,6 +144,54 @@ void
 CustomDataTag::SetTimestamp (Time t)
 {
   m_timestamp = t;
+}
+
+void
+CustomDataTag::SetIpAddr (uint32_t ipAddr)
+{
+  m_ipAddr = ipAddr;
+}
+
+void
+CustomDataTag::SetMask (uint32_t mask)
+{
+  m_mask = mask;
+}
+
+uint32_t
+CustomDataTag::GetIpAddr ()
+{
+  return m_ipAddr;
+}
+
+uint32_t
+CustomDataTag::GetMask ()
+{
+  return m_mask;
+}
+
+void
+CustomDataTag::PrepareHeaderHelloMessage ()
+{
+  m_msgType = 0x01;
+}
+
+void
+CustomDataTag::PrepareHeaderDhcpMessage ()
+{
+  m_msgType = 0x02;
+}
+
+bool
+CustomDataTag::isHelloMessage ()
+{
+  return (m_msgType == 0x01) ? true : false;
+}
+
+bool
+CustomDataTag::isDhcpMessage ()
+{
+  return (m_msgType == 0x02) ? true : false;
 }
 
 } /* namespace ns3 */

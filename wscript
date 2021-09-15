@@ -20,14 +20,16 @@ def build(bld):
                                    
     module.source = [
         'model/beacon-search-net.cc',
-        'model/custom-data-tag.cc'
+        'model/custom-data-tag.cc',
+        'model/beacon-rsu-net.cc'
     ]
 
     headers = bld(features='ns3header')
     headers.module = 'vanetsim'
     headers.source = [
         'model/beacon-search-net.h',
-        'model/custom-data-tag.h'
+        'model/custom-data-tag.h',
+        'model/beacon-rsu-net.h'
     ]
 
     if bld.env.ENABLE_EXAMPLES:

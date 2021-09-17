@@ -40,7 +40,7 @@ private:
   uint32_t m_packetSize; /**< Packet size in bytes */
   uint32_t m_nodeId; /**< Node's Id */
 
-  Ptr<WifiNetDevice> m_wifiDevice;
+  Ptr<WifiNetDevice> m_wifiDevice; /**< wifi device */
   DhcpMap m_ipAddrUsed; /** Dhcp IP control*/
 };
 } // namespace ns3

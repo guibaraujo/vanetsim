@@ -5,6 +5,7 @@
 #include "custom-data-tag.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/internet-module.h"
+#include "ns3/udp-echo-client.h"
 
 #include <bitset>
 #include <bits/stdc++.h>
@@ -61,6 +62,7 @@ BeaconSearchNet::StartApplication ()
       if (dev->GetInstanceTypeId () == WifiNetDevice::GetTypeId ())
         {
           m_wifiDevice = DynamicCast<WifiNetDevice> (dev);
+          m_rsuConnected = 9999; // out - disconnected
           //ReceivePacket will be called when a packet is received
           dev->SetReceiveCallback (MakeCallback (&BeaconSearchNet::ReceivePacket, this));
 
@@ -96,7 +98,7 @@ BeaconSearchNet::CheckHandoverProcess ()
 
   uint32_t ipRSUHandover = HandoverStrategy ();
 
-  if (ipRSUHandover) // ipRSUHandover = 0 >> handover is not necessary
+  if (ipRSUHandover) // if 0 >> handover is not necessary
     {
       Ptr<Packet> packet = Create<Packet> (m_packetSize);
       CustomDataTag tag;
@@ -120,6 +122,48 @@ BeaconSearchNet::ReceivePacket (Ptr<NetDevice> device, Ptr<const Packet> packet,
                                 const Address &sender)
 {
   NS_LOG_FUNCTION (device << packet << protocol << sender);
+
+  //Let's check if packet has a tag attached!
+  CustomDataTag tag;
+  if (packet->PeekPacketTag (tag) && tag.isDhcpMessage ())
+    {
+      Ipv4Address newIpAddr;
+      newIpAddr.Set (tag.GetIpAddr ());
+
+      //NS_LOG_INFO ("Teste var1: " << tag.GetNodeId ());
+      //NS_LOG_INFO ("Teste var2 : " << std::bitset<32> (newIpAddr.Get ()));
+
+      Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> (); // Get Ipv4 instance of the node
+      int32_t interface = ipv4->GetInterfaceForDevice (device);
+      std::string convertMask = "/" + std::to_string (tag.GetMask ());
+
+      Ipv4InterfaceAddress ipv4Addr =
+          Ipv4InterfaceAddress (Ipv4Address (newIpAddr), Ipv4Mask (convertMask.c_str ()));
+
+      Ipv4StaticRoutingHelper helper;
+      Ptr<Ipv4StaticRouting> Ipv4stat;
+
+      Ipv4stat = helper.GetStaticRouting (ipv4);
+      //Ipv4stat->UpdateSortedArray ();
+
+      //changing ip address
+      ipv4->RemoveAddress (interface, 0);
+
+      ipv4->AddAddress (interface, ipv4Addr);
+      ipv4->SetMetric (interface, 1);
+      //ipv4->SetUp (interface);
+      m_rsuConnected = tag.GetNodeId ();
+
+      ipv4 = GetNode ()->GetObject<Ipv4> ();
+      Ipv4stat = helper.GetStaticRouting (ipv4);
+      //Ipv4stat->RemoveRoute (1);
+
+      NS_LOG_INFO (GREEN_CODE << "vehicle-id=" << GetNode ()->GetId ()
+                              << " is now connected to RSU-id=" << m_rsuConnected << END_CODE);
+      NS_LOG_INFO (GREEN_CODE << "vehicle-id=" << GetNode ()->GetId ()
+                              << " has new ipv4 address: " << newIpAddr << " ("
+                              << std::bitset<32> (newIpAddr.Get ()) << ")" << END_CODE);
+    }
   return true;
 }
 
@@ -128,28 +172,55 @@ BeaconSearchNet::PromiscRx (Ptr<const Packet> packet, uint16_t channelFreq, Wifi
                             MpduInfo mpdu, SignalNoiseDbm sn)
 {
   NS_LOG_FUNCTION (packet << channelFreq << tx);
+
+  {
+    CustomDataTag tag;
+    //Let's check if packet has a tag attached and it is HelloMessage
+    if (packet->PeekPacketTag (tag) && tag.isHelloMessage ())
+      {
+        BEACONRECEIVED beaconRecvTemp;
+
+        beaconRecvTemp.rsuId = tag.GetNodeId ();
+        beaconRecvTemp.ipAddr = tag.GetIpAddr ();
+        beaconRecvTemp.mask = tag.GetMask ();
+        // can be tag.GetTimestamp ();
+        beaconRecvTemp.timestamp = (ns3::Time) ns3::Simulator::Now ();
+
+        beaconRecvTemp.signal = sn.signal;
+        beaconRecvTemp.noise = sn.noise;
+        // store the beacon received
+        beaconsReceived.emplace_back (beaconRecvTemp);
+      }
+  }
 }
 
-//** Put your RSU handover strategy here */
-bool
+//** Customize your RSU handover strategy here */
+u_int32_t
 BeaconSearchNet::HandoverStrategy ()
 {
+  //NS_LOG_INFO (RED_CODE << "m_rsuConnected=" << m_rsuConnected << END_CODE);
   Time max_interval = 2 * m_broadcast_time; // ms
   uint32_t ipRSUHandover = 0;
   bool isHandoverNecessary = true;
 
   for (size_t i = 0; i < beaconsReceived.size (); i++)
-    if (m_rsuConnected == beaconsReceived.at (i).rsuId &&
-        ((Now () - beaconsReceived.at (i).timestamp) < max_interval))
-      {
-        isHandoverNecessary = false;
-        break;
-      }
+    {
+      if (m_rsuConnected == beaconsReceived.at (i).rsuId &&
+          ((Now ().GetMilliSeconds () - beaconsReceived.at (i).timestamp.GetMilliSeconds ()) <
+           max_interval.GetMilliSeconds ()))
+        {
+          isHandoverNecessary = false;
+        }
+    }
 
   if (isHandoverNecessary)
     for (size_t i = 0; i < beaconsReceived.size (); i++)
-      if ((Now () - beaconsReceived.at (i).timestamp) < max_interval)
+      if (Now ().GetMilliSeconds () - beaconsReceived.at (i).timestamp.GetMilliSeconds () <
+              max_interval.GetMilliSeconds () ||
+          m_rsuConnected == 9999)
         {
+          NS_LOG_INFO (RED_CODE << "Handover process will be necessary for nodeId="
+                                << GetNode ()->GetId () << END_CODE);
           ipRSUHandover = beaconsReceived.at (i).ipAddr;
           break;
         }

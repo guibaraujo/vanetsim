@@ -56,7 +56,7 @@ BeaconRsuNet::StartApplication ()
   for (uint32_t i = 0; i < n->GetNDevices (); i++)
     {
       Ptr<NetDevice> dev = n->GetDevice (i);
-      //NS_LOG_INFO ("" << dev->GetInstanceTypeId ().GetName ());
+      //NS_LOG_INFO ("dev->GetInstanceTypeId ().GetName () = " << dev->GetInstanceTypeId ().GetName ());
 
       if (dev->GetInstanceTypeId () == WifiNetDevice::GetTypeId ())
         {
@@ -129,8 +129,49 @@ void
 BeaconRsuNet::PromiscRx (Ptr<const Packet> packet, uint16_t channelFreq, WifiTxVector tx,
                          MpduInfo mpdu, SignalNoiseDbm sn)
 {
-
   NS_LOG_FUNCTION (packet << channelFreq << tx);
+
+  //Let's check if packet has a tag attached!
+  CustomDataTag tag;
+  WifiMacHeader hdr;
+  if (packet->PeekPacketTag (tag) && packet->PeekHeader (hdr))
+    {
+      /* message types */
+      if (tag.isDhcpMessage ())
+        {
+          if (GetNode ()->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ().Get () ==
+              tag.GetIpAddr ())
+            {
+              Ipv4Address IpFree;
+              Ptr<Packet> response = Create<Packet> (m_packetSize);
+              CustomDataTag tagResponse;
+
+              IpFree.Set (DhcpService ());
+
+              tagResponse.SetNodeId (GetNode ()->GetId ());
+              tagResponse.SetPosition (GetNode ()->GetObject<MobilityModel> ()->GetPosition ());
+              tagResponse.SetIpAddr (IpFree.Get ());
+              tagResponse.SetMask (
+                  GetNode ()->GetObject<Ipv4> ()->GetAddress (1, 0).GetMask ().GetPrefixLength ());
+
+                            /*
+              NS_LOG_INFO (RED_CODE << ">>>>> hdr.GetAddr2: " << hdr.GetAddr2 () << END_CODE);
+              NS_LOG_INFO (RED_CODE << ">>>>> IpFree: " << std::bitset<32> (IpFree.Get ())
+                                    << END_CODE); */
+
+              //attach the tag to the packet
+              response->AddPacketTag (tagResponse);
+
+              WifiMacHeader hdr;
+              if (packet->PeekHeader (hdr))
+                {
+                  //Let's see if this packet is intended to this node
+                  Mac48Address destination = hdr.GetAddr2 ();
+                  m_wifiDevice->Send (response, destination, 0xFE);
+                }
+            }
+        }
+    }
 }
 
 uint32_t
@@ -140,21 +181,19 @@ BeaconRsuNet::DhcpService ()
   Ipv4InterfaceAddress iaddr = ipv4->GetAddress (1, 0);
   Ipv4Address ipAddr = iaddr.GetLocal ();
 
-  std::bitset<32> sum; //rename unknown
+  std::bitset<32> searchIpFree;
   do
     {
-      std::bitset<32> first (ipAddr.Get ());
+      std::bitset<32> firstIpRsu (ipAddr.Get ());
       std::bitset<1> plusOne (1);
-      sum = first.to_ulong () + plusOne.to_ulong ();
+      searchIpFree = firstIpRsu.to_ulong () + plusOne.to_ulong ();
 
-      ipAddr.Set (sum.to_ulong ());
+      ipAddr.Set (searchIpFree.to_ulong ());
 
   } while (m_ipAddrUsed.find (ipAddr.Get ()) != m_ipAddrUsed.end ());
 
   m_ipAddrUsed.emplace (ipAddr.Get (), 0);
-  NS_LOG_INFO ("____) " << m_ipAddrUsed.size ());
-
-  return (uint32_t) sum.to_ulong ();
+  return (uint32_t) searchIpFree.to_ulong ();
 }
 
 } // namespace ns3

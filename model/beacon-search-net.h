@@ -32,7 +32,7 @@ public:
 
   void CheckHandoverProcess ();
 
-  bool HandoverStrategy (); /**< Handover Strategy */
+  uint32_t HandoverStrategy (); /**< Handover Strategy */
 
   void PromiscRx (Ptr<const Packet> packet, uint16_t channelFreq, WifiTxVector tx, MpduInfo mpdu,
                   SignalNoiseDbm sn);

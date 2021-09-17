@@ -49,17 +49,21 @@ main (int argc, char *argv[])
       LogComponentEnable ("TraciClient", LOG_LEVEL_INFO);
       ///LogComponentEnable ("TrafficControlApplication", LOG_LEVEL_INFO);
       LogComponentEnable ("vanet-example-simple", LOG_LEVEL_INFO);
-      LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_ALL);
-      LogComponentEnable ("UdpEchoClientApplication", LOG_PREFIX_ALL);
-      LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_ALL);
 
-      LogComponentEnable ("beacon-search-net", LOG_LEVEL_INFO);
-      LogComponentEnable ("beacon-rsu-net", LOG_LEVEL_INFO);
+      //LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_ALL);
+      //LogComponentEnable ("UdpEchoClientApplication", LOG_PREFIX_ALL);
+
+      //LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
+
+      LogComponentEnable ("beacon-search-net", LOG_LEVEL_ALL);
+      LogComponentEnable ("beacon-search-net", LOG_PREFIX_ALL);
+      LogComponentEnable ("beacon-rsu-net", LOG_LEVEL_ALL);
+      LogComponentEnable ("beacon-rsu-net", LOG_PREFIX_ALL);
     }
 
   /*** 1. Create node pool and counter; large enough to cover all sumo vehicles ***/
   ns3::Time simulationTime (ns3::Seconds (500));
-  NodeContainer nodePool, nodesArea1;
+  NodeContainer nodePool, nodesVehicles;
   nodePool.Create (11);
   uint32_t nodeCounter (0);
 
@@ -78,8 +82,11 @@ main (int argc, char *argv[])
   Ptr<Node> CAR4 = nodePool.Get (9);
   Ptr<Node> CAR5 = nodePool.Get (10);
 
-  nodesArea1.Add (RSU1);
-  nodesArea1.Add (CAR1);
+  nodesVehicles.Add (CAR1);
+  nodesVehicles.Add (CAR2);
+  nodesVehicles.Add (CAR3);
+  nodesVehicles.Add (CAR4);
+  nodesVehicles.Add (CAR5);
 
   /*** 2. Create and setup channel ***/
   PointToPointHelper p2p;
@@ -88,8 +95,8 @@ main (int argc, char *argv[])
 
   std::string phyMode ("OfdmRate6MbpsBW10MHz");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
-  wifiPhy.Set ("TxPowerStart", DoubleValue (24));
-  wifiPhy.Set ("TxPowerEnd", DoubleValue (24));
+  wifiPhy.Set ("TxPowerStart", DoubleValue (25));
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (25));
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
   Ptr<YansWifiChannel> channel = wifiChannel.Create ();
   wifiPhy.SetChannel (channel);
@@ -101,11 +108,13 @@ main (int argc, char *argv[])
   wifi80211p.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode",
                                       StringValue (phyMode), "ControlMode", StringValue (phyMode));
 
-  NetDeviceContainer wifiDevicesArea1 = wifi80211p.Install (wifiPhy, wifi80211pMac, nodesArea1);
+  NetDeviceContainer wifiDevicesArea1 = wifi80211p.Install (wifiPhy, wifi80211pMac, RSU1);
   NetDeviceContainer wifiDevicesArea2 = wifi80211p.Install (wifiPhy, wifi80211pMac, RSU2);
   NetDeviceContainer wifiDevicesArea3 = wifi80211p.Install (wifiPhy, wifi80211pMac, RSU3);
   NetDeviceContainer wifiDevicesArea4 = wifi80211p.Install (wifiPhy, wifi80211pMac, RSU4);
   NetDeviceContainer wifiDevicesArea5 = wifi80211p.Install (wifiPhy, wifi80211pMac, RSU5);
+  NetDeviceContainer wifiDevicesVehicles =
+      wifi80211p.Install (wifiPhy, wifi80211pMac, nodesVehicles);
 
   NetDeviceContainer p2pDevices1 = p2p.Install (NodeContainer (RSU1, RSU2));
   NetDeviceContainer p2pDevices2 = p2p.Install (NodeContainer (RSU1, RSU3));
@@ -132,6 +141,9 @@ main (int argc, char *argv[])
   wifiInterfaces = address.Assign (wifiDevicesArea4);
   address.SetBase ("172.20.0.0", "255.255.0.0");
   wifiInterfaces = address.Assign (wifiDevicesArea5);
+
+  address.SetBase ("169.254.0.0", "255.255.255.0");
+  wifiInterfaces = address.Assign (wifiDevicesVehicles);
 
   address.SetBase ("189.10.10.0", "255.255.255.252");
   p2pInterfaces = address.Assign (p2pDevices1);
@@ -196,44 +208,6 @@ main (int argc, char *argv[])
   sumoClient->SetAttribute ("SumoAdditionalCmdOptions", StringValue ("--verbose true"));
   sumoClient->SetAttribute ("SumoWaitForSocket", TimeValue (Seconds (1.0)));
 
-  /*** 9. Create and Setup Applications for the RSU node and set position ***/
-  ///RsuSpeedControlHelper rsuSpeedControlHelper (9); // Port #9
-  ///rsuSpeedControlHelper.SetAttribute ("Velocity", UintegerValue (30));           // initial velocity value which is sent to vehicles
-  ///rsuSpeedControlHelper.SetAttribute ("Interval", TimeValue (Seconds (7.0)));    // packet interval
-  ///rsuSpeedControlHelper.SetAttribute ("Client", (PointerValue) (sumoClient));    // pass TraciClient object for accessing sumo in application
-
-  ///ApplicationContainer rsuSpeedControlApps = rsuSpeedControlHelper.Install (nodePool.Get (0));
-  ///rsuSpeedControlApps.Start (Seconds (1.0));
-  ///rsuSpeedControlApps.Stop (simulationTime);
-
-  /*** 10. Setup interface and application for dynamic nodes ***/
-  ///VehicleSpeedControlHelper vehicleSpeedControlHelper (9);
-  ///vehicleSpeedControlHelper.SetAttribute ("Client", (PointerValue) sumoClient); // pass TraciClient object for accessing sumo in application
-
-  uint16_t port = 9; // well-known echo port number
-  UdpEchoServerHelper server (port);
-  ApplicationContainer apps = server.Install (RSU1);
-  apps.Start (Seconds (0.1));
-  apps.Stop (Seconds (500.0));
-
-  ipv4 = RSU1->GetObject<Ipv4> ();
-  iaddr = ipv4->GetAddress (1, 0);
-  ipAddr = iaddr.GetLocal ();
-
-  Address serverAddress = Address (ipAddr);
-  NS_LOG_INFO ("--> " << ipAddr);
-
-  uint32_t packetSize = 1024;
-  uint32_t maxPacketCount = 50;
-  Time interPacketInterval = Seconds (5.);
-  UdpEchoClientHelper client (serverAddress, port);
-  client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-  client.SetAttribute ("PacketSize", UintegerValue (packetSize));
-  apps = client.Install (CAR1);
-  apps.Start (Seconds (2.0));
-  apps.Stop (Seconds (500.0));
-
   // callback function for node creation
   std::function<Ptr<Node> ()> setupNewWifiNode = [&] () -> Ptr<Node> {
     if (nodeCounter >= nodePool.GetN ())
@@ -266,20 +240,33 @@ main (int argc, char *argv[])
     // NOTE: further actions could be required for a save shut down!
   };
 
-  Ptr<BeaconSearchNet> appBeaconSearchNet = CreateObject<BeaconSearchNet> ();
-  appBeaconSearchNet->SetStartTime (Seconds (5));
-  appBeaconSearchNet->SetStopTime (Seconds (500));
-  CAR1->AddApplication (appBeaconSearchNet);
+  Ptr<BeaconSearchNet> appBeaconSearchNet[5];
+  for (size_t i = 0; i < 1; i++)
+    {
+      appBeaconSearchNet[i] = CreateObject<BeaconSearchNet> ();
+      appBeaconSearchNet[i]->SetStartTime (Seconds (5));
+      appBeaconSearchNet[i]->SetStopTime (Seconds (500));
+    }
+  CAR1->AddApplication (appBeaconSearchNet[0]);
 
-  Ptr<BeaconRsuNet> appBeaconRsuNet = CreateObject<BeaconRsuNet> ();
-  appBeaconRsuNet->SetStartTime (Seconds (5));
-  appBeaconRsuNet->SetStopTime (Seconds (500));
-  RSU1->AddApplication (appBeaconRsuNet);
+  Ptr<BeaconRsuNet> appBeaconRsuNet[5];
+  for (size_t i = 0; i < 5; i++)
+    {
+      appBeaconRsuNet[i] = CreateObject<BeaconRsuNet> ();
+      appBeaconRsuNet[i]->SetStartTime (Seconds (5));
+      appBeaconRsuNet[i]->SetStopTime (Seconds (500));
+    }
+  RSU1->AddApplication (appBeaconRsuNet[0]);
+  RSU2->AddApplication (appBeaconRsuNet[1]);
+  RSU3->AddApplication (appBeaconRsuNet[2]);
+  RSU4->AddApplication (appBeaconRsuNet[3]);
+  RSU5->AddApplication (appBeaconRsuNet[4]);
 
   // start traci client with given function pointers
   sumoClient->SumoSetup (setupNewWifiNode, shutdownWifiNode);
   PrintNodeRoutingTable (0, 10.0);
-  PrintNodeRoutingTable (1, 10.0);
+  PrintNodeRoutingTable (6, 1.0);
+  PrintNodeRoutingTable (6, 10.0);
 
   /*** 10. Setup and Start Simulation + Animation ***/
   Simulator::Stop (simulationTime);
